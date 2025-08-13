@@ -42,7 +42,7 @@ def train():
     metrics = jax_metrics.metrics.Accuracy(num_classes=10)
 
     for batch, labels in batch_generator(df_test, 64):
-        loss, logits = eval_step(m.apply, variables, batch, logits)
+        loss, logits = eval_step(m.apply, variables, batch, labels)
         metrics.update(logits, labels)
 
     print(metrics.compute())

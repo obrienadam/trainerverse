@@ -4,6 +4,15 @@ import jax
 import optax
 import jax.numpy as jnp
 import jax_metrics
+from flax.struct import dataclass
+from absl import logging as log
+
+
+@dataclass
+class HyperParams:
+    learning_rate: float = 1e-3
+    batch_size: int = 64
+    num_epochs: int = 1
 
 
 def loss_fn(func, variables, x, labels):
@@ -37,29 +46,34 @@ def eval_step(func, variables, x, labels):
 eval_step = jax.jit(eval_step, static_argnames=("func",))
 
 
-def train():
+def train(hparams: HyperParams = HyperParams()):
     df_train, df_test = load_dataset()
-    data_itr = batch_generator(df_train, 64)
 
     m = model.Model()
     key = jax.random.key(2342)
 
-    optimizer = optax.adam(learning_rate=1e-3)
+    optimizer = optax.adam(learning_rate=hparams.learning_rate)
     variables = m.init(key, jnp.empty((1, 28, 28, 1)))
     opt_state = optimizer.init(variables)
 
-    # for batch, labels in data_itr:
-    #    loss, variables, opt_state = train_step(m.apply, variables, batch, labels, optimizer.update, opt_state)
-    #    print(loss)
+    for epoch in range(hparams.num_epochs):
+        log.info(f"Epoch {epoch+1}/{hparams.num_epochs}")
+        log.info("Shuffling dataset...")
+        df_train = df_train.sample(frac=1.0)
 
-    metrics = jax_metrics.metrics.Accuracy(num_classes=3)
+        for batch, labels in batch_generator(df_train, hparams.batch_size):
+            loss, variables, opt_state = train_step(
+                m.apply, variables, batch, labels, optimizer.update, opt_state
+            )
+            log.info(f"Loss: {loss:.4f}")
 
-    # for batch, labels in batch_generator(df_test, 64):
-    #    loss, logits = eval_step(m.apply, variables, batch, labels)
-    #    metrics.update(preds=logits, target=labels)
+        accuracy = jax_metrics.metrics.Accuracy(num_classes=10)
 
-    metrics.update(preds=jnp.array([0, 0, 1]).exp, target=jnp.array([2]))
-    print(metrics.compute())
+        for batch, labels in batch_generator(df_test, hparams.batch_size):
+            loss, logits = eval_step(m.apply, variables, batch, labels)
+            accuracy = accuracy.update(preds=logits, target=labels)
+
+        log.info(f"Test accuracy: {accuracy.compute():.4f}")
 
 
 if __name__ == "__main__":

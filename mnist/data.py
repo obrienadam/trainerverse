@@ -13,7 +13,6 @@ def load_dataset(shuffle: bool = True):
     df_test = pd.read_parquet("hf://datasets/ylecun/mnist/" + splits["test"])
 
     if shuffle:
-        print("Shuffling...")
         df_train = df_train.sample(frac=1.0)
         df_test = df_test.sample(frac=1.0)
 

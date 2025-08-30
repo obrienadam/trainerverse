@@ -44,11 +44,12 @@ class ResidualBlock(nn.Module):
         return nn.relu(x + y)
 
 
-class Resnet(nn.Module):
+class Resnet18(nn.Module):
     config: ModelConfig
 
     @nn.compact
     def __call__(self, x, training: bool):
+        x = x.astype(jnp.float32) / 255.0  # Normalize input to [0, 1]
         x = nn.Conv(
             features=64,
             kernel_size=(7, 7),

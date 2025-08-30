@@ -77,7 +77,7 @@ def train(
         .batch(hyperparams.batch_size)
         .prefetch(tf.data.AUTOTUNE)
     )
-    test_ds = test_ds.batch(hyperparams.batch_size)
+    test_ds = test_ds.batch(hyperparams.batch_size).prefetch(tf.data.AUTOTUNE)
 
     for epoch in range(hyperparams.num_epochs):
         logging.info("Starting epoch %d / %d.", epoch + 1, hyperparams.num_epochs)

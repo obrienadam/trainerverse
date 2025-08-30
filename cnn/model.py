@@ -19,6 +19,7 @@ class Model(nn.Module):
 
     @nn.compact
     def __call__(self, x, training=True):
+        x = x / 255.0
         for feature in self.params.features:
             x = nn.Conv(
                 features=feature,

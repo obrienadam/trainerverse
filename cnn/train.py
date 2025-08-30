@@ -8,6 +8,7 @@ from data import load_data
 import jax.numpy as jnp
 from absl import logging
 import jax_metrics
+import tensorflow as tf
 
 
 @dataclass
@@ -71,7 +72,11 @@ def train(
     )
 
     train_ds, test_ds, ds_info = load_data("cifar10")
-    train_ds = train_ds.shuffle(1_000_000).batch(hyperparams.batch_size)
+    train_ds = (
+        train_ds.shuffle(1_000_000)
+        .batch(hyperparams.batch_size)
+        .prefetch(tf.data.AUTOTUNE)
+    )
     test_ds = test_ds.batch(hyperparams.batch_size)
 
     for epoch in range(hyperparams.num_epochs):

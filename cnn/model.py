@@ -7,11 +7,11 @@ from collections.abc import Sequence
 
 @dataclass
 class ModelParams:
+    num_outputs: int
     features: Sequence[int] = (32, 64, 128)
     kernel_size: tuple[int, int] = (3, 3)
     mlp_dims: Sequence[int] = (256, 128)
     window_shape: tuple[int, int] = (2, 2)
-    num_outputs: int
 
 
 class Model(nn.Module):

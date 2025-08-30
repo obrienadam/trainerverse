@@ -21,7 +21,7 @@ def load_cifar10_dataset():
 
 
 def load_data(dataset_type: DatasetType):
-    if dataset_type == DatasetType.CIFAR10:
+    if dataset_type == DatasetType.CIFAR10.value:
         return load_cifar10_dataset()
     else:
         raise ValueError(f"Unsupported dataset type: {dataset_type}")

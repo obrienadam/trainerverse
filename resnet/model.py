@@ -64,8 +64,8 @@ class Resnet18(nn.Module):
         for reduce_dimensionality in [False, False, True, False, True, False]:
             x = ResidualBlock(reduce_dimensionality=reduce_dimensionality)(x, training)
 
-        x = nn.avg_pool(x, window_shape=(x.shape[1], x.shape[2]))
+        x = nn.avg_pool(x, window_shape=(x.shape[1], x.shape[2])).squeeze()
         return nn.Dense(
             features=self.config.num_output_classes,
-            kernel_init=nn.initializers.he_normal(),
+            kernel_init=nn.initializers.xavier_normal(),
         )(x)

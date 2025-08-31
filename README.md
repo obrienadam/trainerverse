@@ -1,2 +1,3 @@
-# trainerverse
-My monorepo for various simple ML training experiments.
+# The Trainerverse
+
+A monorepo for some simple ML experiments.

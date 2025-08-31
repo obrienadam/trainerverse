@@ -40,6 +40,7 @@ class ResidualBlock(nn.Module):
                 padding="SAME",
                 kernel_init=nn.initializers.he_normal(),
             )(x)
+            x = nn.BatchNorm(use_running_average=not training)(x)
 
         return nn.relu(x + y)
 
@@ -49,17 +50,17 @@ class Resnet18(nn.Module):
 
     @nn.compact
     def __call__(self, x, training: bool):
-        x = x.astype(jnp.float32) / 255.0  # Normalize input to [0, 1]
+        x = x.astype(jnp.float32) / 255.0
         x = nn.Conv(
             features=64,
-            kernel_size=(7, 7),
-            strides=(2, 2),
+            kernel_size=(3, 3),
+            strides=(1, 1),
             padding="SAME",
             kernel_init=nn.initializers.he_normal(),
         )(x)
         x = nn.BatchNorm(use_running_average=not training)(x)
         x = nn.relu(x)
-        x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2), padding="SAME")
+        # x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2), padding="SAME")
 
         for reduce_dimensionality in [False, False, True, False, True, False]:
             x = ResidualBlock(reduce_dimensionality=reduce_dimensionality)(x, training)

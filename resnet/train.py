@@ -48,6 +48,15 @@ def train_step(
     return state, loss
 
 
+@jax.jit
+def eval_step(state: TrainState, x: chex.Array, y: chex.Array) -> tuple[float, float]:
+    loss, (new_variables, logits) = loss_fn(
+        state.params, state.batch_stats, x, y, state.apply_fn, training=False
+    )
+    accuracy = jnp.mean(jnp.argmax(logits, -1) == y)
+    return loss, accuracy
+
+
 def train(train_config: TrainConfig):
     model = Resnet18(ModelConfig(num_output_classes=10))
     rng = jax.random.PRNGKey(train_config.seed)
@@ -57,7 +66,11 @@ def train(train_config: TrainConfig):
         apply_fn=model.apply,
         params=variables["params"],
         batch_stats=variables["batch_stats"],
-        tx=optax.adam(train_config.learning_rate),
+        tx=optax.adam(
+            optax.cosine_decay_schedule(
+                train_config.learning_rate, train_config.num_epochs * 50_000
+            )
+        ),
     )
 
     ds_train, ds_test, _ = load_data("cifar10")
@@ -77,4 +90,15 @@ def train(train_config: TrainConfig):
             state, loss = train_step(state, x, y)
             logging.log_every_n(
                 logging.INFO, f"Epoch {epoch} Step {step}, Loss: {loss:.4f}", 100
+            )
+
+        logging.info(f"Evaluating epoch {epoch}/{train_config.num_epochs}.")
+
+        for batch in ds_test.as_numpy_iterator():
+            x, y = batch
+            loss, accuracy = eval_step(state, x, y)
+            logging.log_every_n(
+                logging.INFO,
+                f"Epoch {epoch} Eval, Loss: {loss:.4f}, Accuracy: {accuracy:.4f}",
+                10,
             )

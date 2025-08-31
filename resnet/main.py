@@ -5,8 +5,8 @@ from train import TrainConfig, train
 FLAGS = flags.FLAGS
 
 LEARNING_RATE = flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
-NUM_EPOCHS = flags.DEFINE_integer("num_epochs", 10, "Number of epochs.")
-BATCH_SIZE = flags.DEFINE_integer("batch_size", 128, "Batch size.")
+NUM_EPOCHS = flags.DEFINE_integer("num_epochs", 200, "Number of epochs.")
+BATCH_SIZE = flags.DEFINE_integer("batch_size", 64, "Batch size.")
 SEED = flags.DEFINE_integer("seed", 1425, "Random seed.")
 
 

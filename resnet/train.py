@@ -94,11 +94,20 @@ def train(train_config: TrainConfig):
 
         logging.info(f"Evaluating epoch {epoch}/{train_config.num_epochs}.")
 
+        total_loss = 0.0
+        total_correct_predictions = 0
+        total_samples = 0
         for batch in ds_test.as_numpy_iterator():
             x, y = batch
             loss, accuracy = eval_step(state, x, y)
-            logging.log_every_n(
-                logging.INFO,
-                f"Epoch {epoch} Eval, Loss: {loss:.4f}, Accuracy: {accuracy:.4f}",
-                10,
-            )
+            num_samples_in_batch = y.shape[0]
+            total_loss += loss * num_samples_in_batch
+            total_correct_predictions += accuracy * num_samples_in_batch
+            total_samples += num_samples_in_batch
+
+        avg_loss = total_loss / total_samples
+        avg_accuracy = total_correct_predictions / total_samples
+
+        logging.info(
+            f"Epoch {epoch} Final Evaluation, Loss: {avg_loss:.4f}, Accuracy: {avg_accuracy:.4f}"
+        )

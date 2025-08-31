@@ -26,6 +26,7 @@ class Model(nn.Module):
         x = jnp.reshape(x, (x.shape[0], -1))
         for dims in self.config.mlp_dims:
             x = nn.Dense(dims)(x)
+            x = nn.LayerNorm()(x)
             x = nn.relu(x)
 
         x = nn.Dense(10)(x)

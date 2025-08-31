@@ -20,7 +20,7 @@ def load_dataset(shuffle: bool = True):
 
 
 def img_to_greyscale(img):
-    img = Image.open(io.BytesIO(img))
+    img = Image.open(io.BytesIO(img['bytes']))
     return np.array(img.convert("L"))
 
 
@@ -28,7 +28,7 @@ def batch_generator(df: pd.DataFrame, batch_size: int):
     n = len(df)
     for i in range(n // batch_size):
         idx = slice(i * batch_size, (i + 1) * batch_size)
-        batch = df["image.bytes"].iloc[idx]
+        batch = df["image"].iloc[idx]
         batch = (
             np.stack(batch.apply(img_to_greyscale).to_numpy(), dtype=np.float32) / 255.0
         )

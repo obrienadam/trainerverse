@@ -3,13 +3,9 @@ from flax.struct import dataclass
 import jax.numpy as jnp
 from numpy import stack
 
-from cnn import train
-
 
 @dataclass
 class DLRMConfig:
-    num_dense_features: int
-    num_sparse_features: int
     num_embeddings: list[int]
     embedding_dim: int
     bottom_mlp_dims: list[int]
@@ -23,9 +19,9 @@ class MLP(nn.Module):
     @nn.compact
     def __call__(self, x):
         for dim in self.layer_dims:
-            x = nn.Dense(dim, initializer=nn.initializers.xavier_normal())(x)
+            x = nn.Dense(dim, kernel_init=nn.initializers.xavier_normal())(x)
             x = nn.relu(x)
-        return nn.Dense(self.num_outputs, initializer=nn.initializers.xavier_normal())(
+        return nn.Dense(self.num_outputs, kernel_init=nn.initializers.xavier_normal())(
             x
         )
 
@@ -62,7 +58,7 @@ class DLRM(nn.Module):
     config: DLRMConfig
 
     @nn.compact
-    def __call__(self, dense_x, sparse_x, training: bool):
+    def __call__(self, dense_x, sparse_x):
         # Bottom MLP
         dense_x = MLP(self.config.bottom_mlp_dims, self.config.embedding_dim)(dense_x)
 
@@ -71,10 +67,8 @@ class DLRM(nn.Module):
         )(sparse_x)
 
         x = InteractionLayer()(dense_x, sparse_x)
+        x = jnp.concatenate((x, dense_x), axis=1)
 
         # Top MLP
         x = MLP(self.config.top_mlp_dims, 1)(x)
-
-        if not training:
-            x = nn.sigmoid(x)
-        return jnp.squeeze(x)
+        return x.squeeze()

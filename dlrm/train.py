@@ -56,6 +56,7 @@ def eval_step(state, x_dense, x_sparse, labels, accuracy):
     loss, preds = loss_fn(
         state.params, x_dense, x_sparse, labels, state.apply_fn, training=False
     )
+    preds = jnp.where(preds > 0.2, 1.0, 0.0)
     accuracy = accuracy.update(
         preds=jnp.stack((1.0 - preds, preds), axis=1), target=labels
     )

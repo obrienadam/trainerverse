@@ -23,31 +23,33 @@ def load_dataset(batch_size, shuffle_seed):
         )
         column_defaults = [0] + [0.0] * 13 + ["*"] * 26
 
-        ds = (
-            tf.data.experimental.make_csv_dataset(
-                "/home/aobrien/kaggle_datasets/train_1m.txt",
-                field_delim="\t",
-                column_names=column_names,
-                column_defaults=column_defaults,
-                batch_size=batch_size,
-                label_name="labels",
-                num_parallel_reads=tf.data.AUTOTUNE,
-                sloppy=False,
-                shuffle=False,
-                num_epochs=1,
-            )
-            .map(_preprocess, num_parallel_calls=tf.data.AUTOTUNE)
-            .unbatch()
-        )
+        ds_train = tf.data.experimental.make_csv_dataset(
+            "/home/aobrien/kaggle_datasets/criteo_small_train.txt",
+            field_delim="\t",
+            column_names=column_names,
+            column_defaults=column_defaults,
+            batch_size=batch_size,
+            label_name="labels",
+            num_parallel_reads=tf.data.AUTOTUNE,
+            sloppy=True,
+            shuffle=True,
+            num_epochs=1,
+            prefetch_buffer_size=tf.data.AUTOTUNE,
+            shuffle_seed=shuffle_seed,
+        ).map(_preprocess)
 
-        ds_train = ds.take(800_000)
-        ds_test = ds.skip(800_000)
-
-        ds_train = (
-            ds_train.shuffle(10_000, seed=shuffle_seed)
-            .batch(batch_size)
-            .prefetch(tf.data.AUTOTUNE)
-        )
-        ds_test = ds_test.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        ds_test = tf.data.experimental.make_csv_dataset(
+            "/home/aobrien/kaggle_datasets/criteo_small_test.txt",
+            field_delim="\t",
+            column_names=column_names,
+            column_defaults=column_defaults,
+            batch_size=batch_size,
+            label_name="labels",
+            num_parallel_reads=tf.data.AUTOTUNE,
+            sloppy=False,
+            shuffle=False,
+            num_epochs=1,
+            prefetch_buffer_size=tf.data.AUTOTUNE,
+        ).map(_preprocess)
 
         return ds_train, ds_test

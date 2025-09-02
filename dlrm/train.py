@@ -88,8 +88,6 @@ def train(config: TrainConfig):
 
     train_state = TrainState.create(apply_fn=model.apply, params=params, tx=optimizer)
 
-    train_step(train_state, dummy_dense, dummy_sparse, jnp.ones((config.batch_size, 1)))
-
     ds_train, ds_test = load_dataset(
         config.batch_size, shuffle_seed=jax.random.randint(subkey, (), 0, 1e6)
     )

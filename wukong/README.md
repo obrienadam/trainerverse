@@ -37,11 +37,11 @@ The main training script, main.py, can be executed directly from the command lin
 
 ```bash
 python main.py \\  
-  \--dense\_lr=0.0005 \\  
-  \--sparse\_lr=0.005 \\  
-  \--num\_epochs=5 \\  
-  \--batch\_size=2048 \\  
-  \--embedding\_dim=32
+  --dense_lr=0.0005 \\  
+  --sparse_lr=0.005 \\  
+  --num_epochs=5 \\  
+  --batch_size=2048 \\  
+  --embedding_dim=32
 ```
 
 This command will train the DLRM model for 5 epochs using a larger batch size and a 32-dimensional embedding space.
@@ -51,4 +51,4 @@ This command will train the DLRM model for 5 epochs using a larger batch size an
 * main.py: The entry point for the training script, handling flag parsing and orchestrating the training process.  
 * train.py: Contains the core training logic.  
 * model.py: Defines the DLRM model architecture.  
-* requirements.txt: Lists all Python dependencies required for the project.
+* data.py: A data loader.

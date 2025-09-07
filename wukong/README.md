@@ -36,11 +36,11 @@ The main training script, main.py, can be executed directly from the command lin
 ### **Example Run**
 
 ```bash
-python main.py \\  
-  --dense_lr=0.0005 \\  
-  --sparse_lr=0.005 \\  
-  --num_epochs=5 \\  
-  --batch_size=2048 \\  
+python main.py \
+  --dense_lr=0.0005 \
+  --sparse_lr=0.005 \
+  --num_epochs=5 \
+  --batch_size=2048 \
   --embedding_dim=32
 ```
 

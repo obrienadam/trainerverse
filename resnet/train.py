@@ -17,6 +17,7 @@ class TrainConfig:
     num_epochs: int = 10
     batch_size: int = 128
     seed: int = 1425
+    dataset: str = "cifar10"
 
 
 class TrainState(train_state.TrainState):
@@ -58,10 +59,20 @@ def eval_step(state: TrainState, x: chex.Array, y: chex.Array) -> tuple[float, f
 
 
 def train(train_config: TrainConfig):
-    model = Resnet18(ModelConfig(num_output_classes=10))
-    rng = jax.random.PRNGKey(train_config.seed)
-    dummy_batch = jnp.ones((1, 32, 32, 3), jnp.uint8)
-    variables = model.init(rng, dummy_batch, training=True)
+    model = Resnet18(
+        ModelConfig(
+            num_output_classes={
+                "cifar10": 10,
+                "tf_flowers": 5,
+            }[train_config.dataset]
+        )
+    )
+    rng, seed = jax.random.split(jax.random.PRNGKey(train_config.seed))
+
+    ds_train, ds_test, _ = load_data(train_config.dataset, train_config.batch_size)
+    dummy_batch, _ = next(iter(ds_train.as_numpy_iterator()))
+
+    variables = model.init(seed, dummy_batch, training=True)
     state = TrainState.create(
         apply_fn=model.apply,
         params=variables["params"],
@@ -72,16 +83,6 @@ def train(train_config: TrainConfig):
             )
         ),
     )
-
-    ds_train, ds_test, _ = load_data("cifar10")
-
-    rng, _ = jax.random.split(rng)
-    ds_train = (
-        ds_train.shuffle(1_000_000, seed=rng[0])
-        .batch(train_config.batch_size)
-        .prefetch(tf.data.AUTOTUNE)
-    )
-    ds_test = ds_test.batch(train_config.batch_size).prefetch(tf.data.AUTOTUNE)
 
     for epoch in range(1, train_config.num_epochs + 1):
         logging.info(f"Starting epoch {epoch}/{train_config.num_epochs}.")

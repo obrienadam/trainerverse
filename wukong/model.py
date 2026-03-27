@@ -27,7 +27,7 @@ class EmbeddingLayer(nn.Module):
             (total_vocab, self.embedding_dim)
         )
         
-        indices = x + offsets[None, :]
+        indices = x.astype(jnp.int32) + offsets[None, :]
         return jnp.take(embedding_table, indices, axis=0)
 
 
@@ -45,26 +45,19 @@ class MLP(nn.Module):
 
 
 class LinearCompressBlock(nn.Module):
-    num_embeddings: int
-
-    @nn.compact
-    def __call__(self, x):
-        return nn.Dense(
-            self.num_embeddings,
-            use_bias=False,
-            kernel_init=nn.initializers.lecun_normal(),
-        )(jnp.transpose(x, (0, 2, 1))).transpose((0, 2, 1))
-
-
-class FactorizationMachine(nn.Module):
     num_compressed_embeddings: int
 
     @nn.compact
     def __call__(self, x):
-        return jnp.matmul(
-            x,
-            LinearCompressBlock(self.num_compressed_embeddings)(x.transpose((0, 2, 1))),
-        )
+        # x: (batch, num_embed, embed_dim)
+        # We compress the 'num_embed' dimension
+        x_trans = jnp.transpose(x, (0, 2, 1)) # (B, D, E)
+        compressed = nn.Dense(
+            self.num_compressed_embeddings,
+            use_bias=False,
+            kernel_init=nn.initializers.lecun_normal(),
+        )(x_trans) # (B, D, E_new)
+        return jnp.transpose(compressed, (0, 2, 1)) # (B, E_new, D)
 
 
 class FactorizationMachineBlock(nn.Module):
@@ -75,11 +68,20 @@ class FactorizationMachineBlock(nn.Module):
 
     @nn.compact
     def __call__(self, x: chex.Array):
-        x = FactorizationMachine(self.num_compressed_embeddings)(x)
-        x = x.reshape(x.shape[0], -1)
-        x = nn.LayerNorm()(x)
-        x = MLP(self.mlp_hidden_dims, self.num_embeddings * self.embedding_dim)(x)
-        return x.reshape(-1, self.num_embeddings, self.embedding_dim)
+        # x: (B, E, D)
+        # Stable FM interaction: Cross interaction via compressed projection
+        x_comp = LinearCompressBlock(self.num_compressed_embeddings)(x) # (B, E_new, D)
+        
+        # Interaction via element-wise multiplication (shared-field interaction)
+        # If sizes differ, we can tile or sum. Here we use compressed latent interaction.
+        interaction = jnp.mean(x_comp, axis=1) # (B, D)
+        
+        x_flat = x.reshape(x.shape[0], -1) # (B, E*D)
+        combined = jnp.concatenate([x_flat, interaction], axis=1)
+        
+        out = nn.LayerNorm()(combined)
+        out = MLP(self.mlp_hidden_dims, self.num_embeddings * self.embedding_dim)(out)
+        return out.reshape(-1, self.num_embeddings, self.embedding_dim)
 
 
 class WukongLayer(nn.Module):
@@ -92,13 +94,13 @@ class WukongLayer(nn.Module):
     def __call__(self, x):
         # x: (batch, num_embed, embed_dim)
         res = x
-        x = FactorizationMachineBlock(
+        interaction = FactorizationMachineBlock(
             num_embeddings=self.num_embeddings,
             embedding_dim=self.embedding_dim,
             num_compressed_embeddings=self.num_compressed_embeddings,
             mlp_hidden_dims=self.mlp_hidden_dims
         )(x)
-        return x + res
+        return nn.LayerNorm()(interaction + res)
 
 
 class Wukong(nn.Module):

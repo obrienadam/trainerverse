@@ -77,7 +77,7 @@ class FactorizationMachineBlock(nn.Module):
     def __call__(self, x: chex.Array):
         x = FactorizationMachine(self.num_compressed_embeddings)(x)
         x = x.reshape(x.shape[0], -1)
-        x = nn.LayerNorm(x)
+        x = nn.LayerNorm()(x)
         x = MLP(self.mlp_hidden_dims, self.num_embeddings * self.embedding_dim)(x)
         return x.reshape(-1, self.num_embeddings, self.embedding_dim)
 

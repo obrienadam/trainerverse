@@ -1,36 +1,61 @@
+import grain.python as grain
 import pandas as pd
 from PIL import Image
 import io
 import numpy as np
 
 
-def load_dataset(shuffle: bool = True):
-    splits = {
-        "train": "mnist/train-00000-of-00001.parquet",
-        "test": "mnist/test-00000-of-00001.parquet",
-    }
-    df_train = pd.read_parquet("hf://datasets/ylecun/mnist/" + splits["train"])
-    df_test = pd.read_parquet("hf://datasets/ylecun/mnist/" + splits["test"])
+class MNISTDataset(grain.MapDataset):
+    def __init__(self, split: str = "train"):
+        parquet_file = f"mnist/{split}-00000-of-00001.parquet"
+        self.df = pd.read_parquet(f"hf://datasets/ylecun/mnist/{parquet_file}")
 
-    if shuffle:
-        df_train = df_train.sample(frac=1.0)
-        df_test = df_test.sample(frac=1.0)
+    def __len__(self):
+        return len(self.df)
 
-    return df_train, df_test
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        image = self._img_to_numpy(row["image"])
+        label = int(row["label"])
+        return image, label
+
+    def _img_to_numpy(self, img_dict):
+        img = Image.open(io.BytesIO(img_dict['bytes']))
+        img_array = np.array(img.convert("L"), dtype=np.float32) / 255.0
+        return np.expand_dims(img_array, -1)
 
 
-def img_to_greyscale(img):
-    img = Image.open(io.BytesIO(img['bytes']))
-    return np.array(img.convert("L"))
+def load_datasets(batch_size: int, shuffle_seed: int = 42):
+    train_ds = MNISTDataset(split="train")
+    test_ds = MNISTDataset(split="test")
 
+    sampler_train = grain.IndexSampler(
+        num_records=len(train_ds),
+        num_epochs=1,
+        shard_options=grain.NoSharding(),
+        shuffle=True,
+        seed=shuffle_seed,
+    )
+    
+    loader_train = grain.DataLoader(
+        data_source=train_ds,
+        sampler=sampler_train,
+        worker_count=0,
+        operations=[grain.Batch(batch_size=batch_size)],
+    )
 
-def batch_generator(df: pd.DataFrame, batch_size: int):
-    n = len(df)
-    for i in range(n // batch_size):
-        idx = slice(i * batch_size, (i + 1) * batch_size)
-        batch = df["image"].iloc[idx]
-        batch = (
-            np.stack(batch.apply(img_to_greyscale).to_numpy(), dtype=np.float32) / 255.0
-        )
-        labels = df["label"].iloc[idx].to_numpy()
-        yield np.expand_dims(batch, -1), labels
+    sampler_test = grain.IndexSampler(
+        num_records=len(test_ds),
+        num_epochs=1,
+        shard_options=grain.NoSharding(),
+        shuffle=False,
+    )
+    
+    loader_test = grain.DataLoader(
+        data_source=test_ds,
+        sampler=sampler_test,
+        worker_count=0,
+        operations=[grain.Batch(batch_size=batch_size)],
+    )
+
+    return loader_train, loader_test

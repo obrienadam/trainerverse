@@ -1,5 +1,5 @@
 import model
-from data import load_dataset, batch_generator
+from data import load_datasets
 import jax
 import optax
 import jax.numpy as jnp
@@ -47,7 +47,7 @@ eval_step = jax.jit(eval_step, static_argnames=("func",))
 
 
 def train(hparams: HyperParams = HyperParams()):
-    df_train, df_test = load_dataset()
+    loader_train, loader_test = load_datasets(hparams.batch_size)
 
     m = model.Model()
     key = jax.random.key(2342)
@@ -58,10 +58,8 @@ def train(hparams: HyperParams = HyperParams()):
 
     for epoch in range(hparams.num_epochs):
         log.info(f"Epoch {epoch+1}/{hparams.num_epochs}")
-        log.info("Shuffling dataset...")
-        df_train = df_train.sample(frac=1.0)
 
-        for batch, labels in batch_generator(df_train, hparams.batch_size):
+        for batch, labels in loader_train:
             loss, variables, opt_state = train_step(
                 m.apply, variables, batch, labels, optimizer.update, opt_state
             )
@@ -69,11 +67,14 @@ def train(hparams: HyperParams = HyperParams()):
 
         accuracy = jax_metrics.metrics.Accuracy(num_classes=10)
 
-        for batch, labels in batch_generator(df_test, hparams.batch_size):
+        for batch, labels in loader_test:
             loss, logits = eval_step(m.apply, variables, batch, labels)
             accuracy = accuracy.update(preds=logits, target=labels)
 
         log.info(f"Test accuracy: {accuracy.compute():.4f}")
+
+    return variables, m
+
 
 
 if __name__ == "__main__":

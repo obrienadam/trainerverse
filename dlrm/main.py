@@ -57,8 +57,8 @@ def main(argv):
     model_config = DLRMConfig(
         num_embeddings=_VOCAB_SIZES,
         embedding_dim=FLAGS.embedding_dim,
-        bottom_mlp_dims=FLAGS.bottom_mlp_dims,
-        top_mlp_dims=FLAGS.top_mlp_dims,
+        bottom_mlp_dims=[int(d) for d in FLAGS.bottom_mlp_dims],
+        top_mlp_dims=[int(d) for d in FLAGS.top_mlp_dims],
     )
 
     config = TrainConfig(

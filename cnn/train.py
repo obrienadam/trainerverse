@@ -4,11 +4,10 @@ import jax
 from flax.struct import dataclass
 from flax.training import train_state
 import chex
-from data import load_data
+from data import load_datasets, DatasetType
 import jax.numpy as jnp
 from absl import logging
 import jax_metrics
-import tensorflow as tf
 
 
 @dataclass
@@ -71,25 +70,17 @@ def train(
         tx=tx,
     )
 
-    train_ds, test_ds, ds_info = load_data("cifar10")
-    train_ds = (
-        train_ds.shuffle(1_000_000)
-        .batch(hyperparams.batch_size)
-        .prefetch(tf.data.AUTOTUNE)
-    )
-    test_ds = test_ds.batch(hyperparams.batch_size).prefetch(tf.data.AUTOTUNE)
+    train_ds, test_ds = load_datasets(DatasetType.CIFAR10, batch_size=hyperparams.batch_size, shuffle_seed=hyperparams.seed)
 
     for epoch in range(hyperparams.num_epochs):
         logging.info("Starting epoch %d / %d.", epoch + 1, hyperparams.num_epochs)
 
-        for step, batch in enumerate(train_ds.as_numpy_iterator()):
-            images, labels = batch
+        for step, (images, labels) in enumerate(train_ds):
             train_state, loss = train_step(train_state, images, labels)
             logging.info("Epoch %d, step %d, loss: %.4f", epoch + 1, step + 1, loss)
 
         accuracy = jax_metrics.metrics.Accuracy()
-        for batch in test_ds.as_numpy_iterator():
-            images, labels = batch
+        for images, labels in test_ds:
             loss, logits = eval_step(train_state, images, labels)
             accuracy = accuracy.update(preds=logits, target=labels)
             logging.info("Eval loss: %.4f", loss)

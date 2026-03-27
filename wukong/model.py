@@ -17,7 +17,18 @@ class EmbeddingLayer(nn.Module):
 
     @nn.compact
     def __call__(self, x: chex.Array):
-        pass
+        # x is (batch, num_features)
+        total_vocab = sum(self.vocab_sizes)
+        offsets = jnp.array([0] + list(jnp.cumsum(jnp.array(self.vocab_sizes))[:-1]))
+        
+        embedding_table = self.param(
+            "embedding_table",
+            nn.initializers.truncated_normal(stddev=1.0 / jnp.sqrt(total_vocab)),
+            (total_vocab, self.embedding_dim)
+        )
+        
+        indices = x + offsets[None, :]
+        return jnp.take(embedding_table, indices, axis=0)
 
 
 class MLP(nn.Module):
@@ -70,8 +81,52 @@ class FactorizationMachineBlock(nn.Module):
         x = MLP(self.mlp_hidden_dims, self.num_embeddings * self.embedding_dim)(x)
         return x.reshape(-1, self.num_embeddings, self.embedding_dim)
 
+
 class WukongLayer(nn.Module):
+    num_embeddings: int
+    embedding_dim: int
+    num_compressed_embeddings: int
+    mlp_hidden_dims: Sequence[int]
 
     @nn.compact
     def __call__(self, x):
-        
+        # x: (batch, num_embed, embed_dim)
+        res = x
+        x = FactorizationMachineBlock(
+            num_embeddings=self.num_embeddings,
+            embedding_dim=self.embedding_dim,
+            num_compressed_embeddings=self.num_compressed_embeddings,
+            mlp_hidden_dims=self.mlp_hidden_dims
+        )(x)
+        return x + res
+
+
+class Wukong(nn.Module):
+    config: WukongConfig
+    vocab_sizes: Sequence[int]
+
+    @nn.compact
+    def __call__(self, dense_x, sparse_x):
+        # Dense processing
+        dense_x = MLP([64, self.config.embedding_dim], self.config.embedding_dim)(dense_x)
+        dense_x = jnp.expand_dims(dense_x, axis=1) # (B, 1, D)
+
+        # Sparse processing
+        sparse_x = EmbeddingLayer(self.vocab_sizes, self.config.embedding_dim)(sparse_x) # (B, 26, D)
+
+        # Combine
+        x = jnp.concatenate([dense_x, sparse_x], axis=1) # (B, 27, D)
+
+        # Wukong interaction layers
+        for _ in range(3):
+            x = WukongLayer(
+                num_embeddings=x.shape[1],
+                embedding_dim=self.config.embedding_dim,
+                num_compressed_embeddings=16,
+                mlp_hidden_dims=[128, 128]
+            )(x)
+
+        # Final MLP
+        x = x.reshape(x.shape[0], -1)
+        x = MLP([256, 128], 1)(x)
+        return x.squeeze(-1)

@@ -1,7 +1,7 @@
-from random import shuffle
-import tensorflow_datasets as tfds
+import grain.python as grain
 from enum import Enum
-import tensorflow as tf
+import numpy as np
+from PIL import Image
 
 
 class DatasetType(Enum):
@@ -10,75 +10,52 @@ class DatasetType(Enum):
     TF_FLOWERS = "tf_flowers"
 
 
-def load_cifar10_dataset(batch_size: int, seed=213423):
-    with tf.device("/CPU:0"):
-        (train_ds, test_ds), ds_info = tfds.load(
-            "cifar10",
-            split=["train", "test"],
-            as_supervised=True,
-            with_info=True,
-            shuffle_files=True,
-        )
-
-        train_ds = (
-            train_ds.shuffle(10_000, seed=seed)
-            .batch(batch_size)
-            .prefetch(tf.data.AUTOTUNE)
-        )
-        test_ds = test_ds.batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
-        return train_ds, test_ds, ds_info
+def resize_and_crop(item, size=(224, 224)):
+    img = item["image"]
+    label = item["label"]
+    
+    # Using PIL for pure python resizing (Grain style)
+    pil_img = Image.fromarray(img)
+    pil_img = pil_img.resize(size, Image.Resampling.LANCZOS)
+    
+    return np.array(pil_img, dtype=np.float32), label
 
 
-def load_cifar100_dataset():
-    (train_ds, test_ds), ds_info = tfds.load(
-        "cifar100",
-        split=["train", "test"],
-        as_supervised=True,
-        with_info=True,
-        shuffle_files=True,
-    )
-
-    return train_ds, test_ds, ds_info
-
-
-def load_tf_flowers(batch_size: int):
-    with tf.device("/CPU:0"):
-        ds_train, ds_info = tfds.load(
-            "tf_flowers",
-            split="train[:80%]",
-            as_supervised=True,
-            shuffle_files=False,
-            with_info=True,
-        )
-        ds_test = tfds.load(
-            "tf_flowers",
-            split="train[80%:]",
-            as_supervised=True,
-            shuffle_files=False,
-            with_info=False,
-        )
-
-        def preprocess(img, label):
-            img = tf.image.resize_with_crop_or_pad(img, 224, 224)
-            return img, label
-
-        ds_train = (
-            ds_train.shuffle(10_000)
-            .map(preprocess)
-            .batch(batch_size)
-            .prefetch(tf.data.AUTOTUNE)
-        )
-        ds_test = ds_test.map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-        return ds_train, ds_test, ds_info
-
-
-def load_data(dataset_type: DatasetType, batch_size: int):
-    if dataset_type == DatasetType.CIFAR10.value:
-        return load_cifar10_dataset(batch_size=batch_size)
-    elif dataset_type == DatasetType.CIFAR100.value:
-        return load_cifar100_dataset()
-    elif dataset_type == DatasetType.TF_FLOWERS.value:
-        return load_tf_flowers(batch_size=batch_size)
+def load_datasets(dataset_type: DatasetType, batch_size: int, shuffle_seed: int = 42):
+    if dataset_type == DatasetType.CIFAR10:
+        name = "cifar10"
+    elif dataset_type == DatasetType.CIFAR100:
+        name = "cifar100"
+    elif dataset_type == DatasetType.TF_FLOWERS:
+        name = "tf_flowers"
     else:
         raise ValueError(f"Unsupported dataset type: {dataset_type}")
+
+    train_ds = grain.TfdsDataSource(name=name, split="train" if name != "tf_flowers" else "train[:80%]", shuffle_files=True)
+    test_ds = grain.TfdsDataSource(name=name, split="test" if name != "tf_flowers" else "train[80%:]", shuffle_files=False)
+
+    def get_loader(ds, shuffle):
+        sampler = grain.IndexSampler(
+            num_records=len(ds),
+            num_epochs=1,
+            shard_options=grain.NoSharding(),
+            shuffle=shuffle,
+            seed=shuffle_seed,
+        )
+        
+        ops = []
+        if dataset_type == DatasetType.TF_FLOWERS:
+            ops.append(grain.MapTransform(resize_and_crop))
+        else:
+            ops.append(grain.MapTransform(lambda x: (x["image"].astype(np.float32), x["label"])))
+            
+        ops.append(grain.Batch(batch_size=batch_size))
+        
+        return grain.DataLoader(
+            data_source=ds,
+            sampler=sampler,
+            worker_count=0,
+            operations=ops,
+        )
+
+    return get_loader(train_ds, True), get_loader(test_ds, False)

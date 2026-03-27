@@ -1,4 +1,3 @@
-from random import seed
 from flax.training import train_state
 from flax.struct import dataclass
 import optax
@@ -6,8 +5,7 @@ import jax.numpy as jnp
 import chex
 import jax
 from model import Resnet18, ModelConfig
-from data import load_data
-import tensorflow as tf
+from data import load_datasets, DatasetType
 from absl import logging
 
 
@@ -69,8 +67,8 @@ def train(train_config: TrainConfig):
     )
     rng, seed = jax.random.split(jax.random.PRNGKey(train_config.seed))
 
-    ds_train, ds_test, _ = load_data(train_config.dataset, train_config.batch_size)
-    dummy_batch, _ = next(iter(ds_train.as_numpy_iterator()))
+    ds_train, ds_test = load_datasets(DatasetType(train_config.dataset), train_config.batch_size)
+    dummy_batch, _ = next(iter(ds_train))
 
     variables = model.init(seed, dummy_batch, training=True)
     state = TrainState.create(
@@ -86,8 +84,7 @@ def train(train_config: TrainConfig):
 
     for epoch in range(1, train_config.num_epochs + 1):
         logging.info(f"Starting epoch {epoch}/{train_config.num_epochs}.")
-        for step, batch in enumerate(ds_train.as_numpy_iterator()):
-            x, y = batch
+        for step, (x, y) in enumerate(ds_train):
             state, loss = train_step(state, x, y)
             logging.log_every_n(
                 logging.INFO, f"Epoch {epoch} Step {step}, Loss: {loss:.4f}", 100
@@ -98,8 +95,7 @@ def train(train_config: TrainConfig):
         total_loss = 0.0
         total_correct_predictions = 0
         total_samples = 0
-        for batch in ds_test.as_numpy_iterator():
-            x, y = batch
+        for x, y in ds_test:
             loss, accuracy = eval_step(state, x, y)
             num_samples_in_batch = y.shape[0]
             total_loss += loss * num_samples_in_batch
